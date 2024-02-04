@@ -2,29 +2,31 @@ package main
 
 import (
 	"fmt"
+	"math"
 	"math/rand"
 	"os"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
 
 const (
-	mapWidth  = 200
-	mapHeight = 200
-    windowWidth = 51
-    windowHeight = 21
-    apple = ""
-    border = "█"
-    snakeHead = ""
-    snakeBody = ""
-    empty = "⋅"
+	mapWidth     = 200
+	mapHeight    = 200
+	windowWidth  = 51
+	windowHeight = 21
+	apple        = ""
+	border       = "█"
+	snakeHead    = ""
+	snakeBody    = ""
+	empty        = "⋅"
 )
 
 type tickMsg time.Time
 
 func tick() tea.Cmd {
-	return tea.Every(time.Millisecond*500, func(t time.Time) tea.Msg {
+	return tea.Every(time.Millisecond*100, func(t time.Time) tea.Msg {
 		return tickMsg(t)
 	})
 }
@@ -62,8 +64,8 @@ func initialState() gameState {
 
 	return gameState{
 		length: length,
-		xSpeed: xSpeed,
-		ySpeed: ySpeed,
+		xSpeed: -xSpeed,
+		ySpeed: -ySpeed,
 		body:   body,
 	}
 }
@@ -105,7 +107,7 @@ func getRandomStartingPosition(offset int) (int, int) {
 }
 
 func (g gameState) Init() tea.Cmd {
-	return nil
+	return tick()
 }
 
 func (g gameState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -113,17 +115,25 @@ func (g gameState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "up", "k":
-			g.xSpeed = 0
-			g.ySpeed = -1
+			if g.ySpeed == 0 {
+				g.xSpeed = 0
+				g.ySpeed = -1
+			}
 		case "down", "j":
-			g.xSpeed = 0
-			g.ySpeed = 1
+			if g.ySpeed == 0 {
+				g.xSpeed = 0
+				g.ySpeed = 1
+			}
 		case "left", "h":
-			g.xSpeed = -1
-			g.ySpeed = 0
+			if g.xSpeed == 0 {
+				g.xSpeed = -1
+				g.ySpeed = 0
+			}
 		case "right", "l":
-			g.xSpeed = 1
-			g.ySpeed = 0
+			if g.xSpeed == 0 {
+				g.xSpeed = 1
+				g.ySpeed = 0
+			}
 		case "ctrl+c", "q":
 			return g, tea.Quit
 		}
@@ -140,8 +150,51 @@ func (g gameState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return g, nil
 }
 
+func buildMap(anchorX, anchorY int) []string {
+	snakeMap := make([]string, windowHeight)
+
+	middleX := int(math.Ceil(windowWidth / 2))
+	middleY := int(math.Ceil(windowHeight / 2))
+
+	topWall := middleY - anchorY - 1
+	rightWall := mapWidth - anchorX + middleX + 1
+	bottomWall := mapHeight - anchorY + middleY + 1
+	leftWall := middleX - anchorX - 1
+
+	lineStart := max(0, leftWall)
+	lineEnd := min(windowWidth, rightWall)
+	lineSize := lineEnd - lineStart
+	ousideArea := strings.Repeat(" ", lineStart)
+
+	for i := 0; i < windowHeight; i++ {
+		if i < topWall || i > bottomWall {
+			continue
+		}
+
+		if topWall == i || bottomWall == i {
+			snakeMap[i] = ousideArea + strings.Repeat(border, lineSize)
+			continue
+		}
+
+		snakeMap[i] = ousideArea
+		if len(snakeMap[i]) > 0 {
+			snakeMap[i] += border
+		}
+
+		if rightWall > windowWidth {
+			snakeMap[i] += strings.Repeat(empty, lineSize)
+		} else {
+			snakeMap[i] += strings.Repeat(empty, lineSize-1) + border
+		}
+	}
+
+	return snakeMap
+}
+
 func (g gameState) View() string {
-	return "Hello, world!"
+	gameMap := buildMap(g.body[0][0], g.body[0][1])
+
+	return fmt.Sprint(g.body) + "\n" + strings.Join(gameMap, "\n")
 }
 
 func main() {
