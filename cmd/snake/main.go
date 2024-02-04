@@ -16,10 +16,10 @@ const (
 	mapHeight    = 200
 	windowWidth  = 51
 	windowHeight = 21
-	apple        = ""
+	apple        = "🞜"
 	border       = "█"
-	snakeHead    = ""
-	snakeBody    = ""
+	snakeHead    = '⦿'
+	snakeBody    = '⦾'
 	empty        = "⋅"
 )
 
@@ -32,6 +32,7 @@ func tick() tea.Cmd {
 }
 
 type gameState struct {
+	dead bool
 	length int
 	body   [][2]int
 	xSpeed int
@@ -39,7 +40,7 @@ type gameState struct {
 }
 
 func initialState() gameState {
-	length := 5
+	length := 10
 	headX, headY := getRandomStartingPosition(length + 1)
 	direction := rand.Intn(4)
 
@@ -63,6 +64,7 @@ func initialState() gameState {
 	}
 
 	return gameState{
+		dead: false,
 		length: length,
 		xSpeed: -xSpeed,
 		ySpeed: -ySpeed,
@@ -140,8 +142,8 @@ func (g gameState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tickMsg:
 		g.moveSnake()
 
-		died := g.checkCollisions()
-		if died {
+		g.dead = g.checkCollisions()
+		if g.dead {
 			return g, tea.Quit
 		}
 
@@ -191,10 +193,45 @@ func buildMap(anchorX, anchorY int) []string {
 	return snakeMap
 }
 
-func (g gameState) View() string {
-	gameMap := buildMap(g.body[0][0], g.body[0][1])
+func ReplaceCharAt(s string, c rune, i int) string {
+    r := []rune(s)
+    r[i] = c
+    return string(r)
+}
+func (g gameState) RenderBody(gameMap []string) []string {
+	if len(gameMap) != windowHeight {
+		return gameMap
+	}
 
-	return fmt.Sprint(g.body) + "\n" + strings.Join(gameMap, "\n")
+	middleX := int(math.Ceil(windowWidth / 2))
+	middleY := int(math.Ceil(windowHeight / 2))
+	headX := g.body[0][0]
+	headY := g.body[0][1]
+
+	offsetX := middleX - headX
+	offsetY := middleY - headY
+
+	gameMap[middleY] = ReplaceCharAt(gameMap[middleY], snakeHead, middleX)
+
+	for i := 1; i < len(g.body); i++ {
+		x := g.body[i][0] + offsetX
+		y := g.body[i][1] + offsetY
+
+		gameMap[y] = ReplaceCharAt(gameMap[y], snakeBody, x)
+	}
+
+	return gameMap
+}
+
+func (g gameState) View() string {
+	if g.dead {
+		return ""
+	}
+
+	gameMap := buildMap(g.body[0][0], g.body[0][1])
+	gameMap = g.RenderBody(gameMap)
+
+	return strings.Join(gameMap, "\n")
 }
 
 func main() {
@@ -203,4 +240,6 @@ func main() {
 		fmt.Println("Some error happened:", err)
 		os.Exit(1)
 	}
+
+	fmt.Println("Game Over")
 }
